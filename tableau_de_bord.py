@@ -20,6 +20,7 @@ def generer(chemin, dispo, combos, historique, date_max, noms):
         "dispo": [train(t) for t in dispo],
         "allersRetours": [[train(a), train(r)] for a, r in combos],
         "historique": historique,
+        "vapid": cle_vapid.read_text().strip() if (cle_vapid := chemin.parent / "vapid_public.txt").exists() else None,
     }
     js = json.dumps(donnees, ensure_ascii=False).replace("</", "<\\/")
     chemin.write_text(MODELE.replace("__DONNEES__", js), encoding="utf-8")
@@ -32,6 +33,12 @@ MODELE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TGV Max Antibes–Paris</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="theme-color" content="#e0662d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TGV Max">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 :root {
@@ -90,6 +97,15 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .deux .carte { margin-bottom: 0; }
 .aide { color: var(--muted); font-size: 13px; margin: -6px 0 12px; }
 a { color: inherit; }
+#notif { display: flex; flex-direction: column; gap: 10px; }
+#notif[hidden] { display: none; }
+#notif .ligne { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+#notif p { margin: 0; }
+.bouton { border: none; background: var(--aller); color: #fff; padding: 9px 16px; border-radius: 999px;
+  font: inherit; font-weight: 600; cursor: pointer; }
+.bouton.discret { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 400; }
+#notif textarea { width: 100%; height: 90px; font: 12px ui-monospace, Consolas, monospace; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); padding: 8px; resize: vertical; }
 @media (max-width: 720px) {
   .deux { grid-template-columns: 1fr; }
   .jour { min-height: 70px; padding: 3px; }
@@ -101,6 +117,7 @@ a { color: inherit; }
 <main>
   <h1>🚄 TGV Max · Antibes ⇄ Paris</h1>
   <p class="sous" id="sous"></p>
+  <div class="carte" id="notif" hidden></div>
   <div class="onglets">
     <button class="actif" data-onglet="cal">Calendrier</button>
     <button data-onglet="proba">Probabilités</button>
@@ -165,6 +182,54 @@ document.querySelectorAll(".onglets button").forEach(b => b.onclick = () => {
   document.getElementById("proba").hidden = b.dataset.onglet !== "proba";
   if (b.dataset.onglet === "proba") dessinerGraphes();
 });
+
+// ---------- Notifications web ----------
+(async function notifications() {
+  const zone = document.getElementById("notif");
+  if (!D.vapid || location.protocol !== "https:") return;
+  zone.hidden = false;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const installe = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    zone.innerHTML = ios && !installe
+      ? `<p><b>🔔 Notifications sur iPhone :</b> touche <b>Partager</b> (carré avec une flèche) → <b>Sur l'écran d'accueil</b>, puis ouvre l'appli <b>TGV Max</b> depuis l'icône et reviens ici.</p>`
+      : `<p>🔕 Ce navigateur ne gère pas les notifications web. Essaie avec Chrome (Android) ou depuis l'écran d'accueil (iPhone).</p>`;
+    return;
+  }
+
+  const reg = await navigator.serviceWorker.register("sw.js");
+  const cleServeur = Uint8Array.from(atob(D.vapid.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+
+  function afficherCode(abo, nouveau) {
+    const code = JSON.stringify(abo);
+    zone.innerHTML = `
+      <div class="ligne"><p><b>🔔 Notifications ${nouveau ? "presque activées" : "activées"} sur cet appareil.</b></p></div>
+      ${nouveau ? `<p>Dernière étape (une seule fois) : copie ce code et envoie-le à Claude pour qu'il l'ajoute à GitHub.</p>` : ""}
+      <details ${nouveau ? "open" : ""}><summary class="aide" style="margin:0;cursor:pointer">Code d'activation de cet appareil</summary>
+        <textarea readonly>${code}</textarea>
+        <div class="ligne"><button class="bouton" id="copier">Copier le code</button></div>
+      </details>`;
+    document.getElementById("copier").onclick = async e => {
+      try { await navigator.clipboard.writeText(code); e.target.textContent = "Copié ✓"; }
+      catch { zone.querySelector("textarea").select(); }
+    };
+  }
+
+  const existant = await reg.pushManager.getSubscription();
+  if (existant && Notification.permission === "granted") return afficherCode(existant, false);
+
+  zone.innerHTML = `<div class="ligne"><p>🔔 Recevoir les alertes TGV Max sur cet appareil, sans appli.</p>
+    <button class="bouton" id="activer">Activer les notifications</button></div>`;
+  document.getElementById("activer").onclick = async () => {
+    if (await Notification.requestPermission() !== "granted") {
+      zone.innerHTML = `<p>🔕 Notifications refusées. Autorise-les dans les réglages du navigateur pour ce site, puis recharge la page.</p>`;
+      return;
+    }
+    const abo = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: cleServeur });
+    afficherCode(abo, true);
+  };
+})();
 
 // ---------- Calendrier ----------
 (function calendrier() {

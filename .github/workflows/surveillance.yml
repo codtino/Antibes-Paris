@@ -21,11 +21,22 @@ jobs:
     env:
       TZ: Europe/Paris
       NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+      WEB_PUSH_ABONNEMENTS: ${{ secrets.WEB_PUSH_ABONNEMENTS }}
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: .github/workflows/surveillance.yml
+
+      - name: Installer pywebpush (notifications web)
+        run: pip install pywebpush
+
       - name: Vérifier les places
-        run: python3 tgvmax_alerte.py
+        run: python tgvmax_alerte.py
 
       - name: Sauvegarder l'état et l'historique
         run: |

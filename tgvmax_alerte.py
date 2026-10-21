@@ -47,6 +47,13 @@ _fichier_sujet = Path(__file__).resolve().parent / "ntfy_sujet.txt"
 NTFY_TOPIC = (os.environ.get("NTFY_TOPIC")
               or (_fichier_sujet.read_text().strip() if _fichier_sujet.exists() else None))
 
+# Notifications web (activées depuis le site, bouton « Activer les notifications »).
+#   Les abonnements des appareils et la clé privée sont dans les secrets GitHub
+#   WEB_PUSH_ABONNEMENTS et VAPID_PRIVATE_KEY (ou, sur le PC, dans
+#   webpush_abonnements.json et vapid_prive.txt, jamais publiés).
+SITE = "https://codtino.github.io/Antibes-Paris/tableau_de_bord.html"
+CONTACT_VAPID = "mailto:106277128+codtino@users.noreply.github.com"
+
 # Notification Windows (bulle en bas à droite)
 NOTIF_WINDOWS = True
 
@@ -164,8 +171,37 @@ def notifier(titre, message, prioritaire=False):
             urllib.request.urlopen(req, timeout=15)
         except Exception as e:
             print(f"Erreur ntfy : {e}")
+    notif_web(titre, message, prioritaire)
     if NOTIF_WINDOWS and sys.platform == "win32":
         notif_windows(titre, message)
+
+
+def secret(variable, fichier):
+    if os.environ.get(variable):
+        return os.environ[variable].strip()
+    chemin = DOSSIER / fichier
+    return chemin.read_text(encoding="utf-8").strip() if chemin.exists() else None
+
+
+def notif_web(titre, message, prioritaire=False):
+    abonnements, cle_privee = (secret("WEB_PUSH_ABONNEMENTS", "webpush_abonnements.json"),
+                               secret("VAPID_PRIVATE_KEY", "vapid_prive.txt"))
+    if not abonnements or not cle_privee:
+        return
+    try:
+        from pywebpush import webpush
+    except ImportError:
+        print("pywebpush non installé : pas de notification web")
+        return
+    contenu = json.dumps({"title": titre, "body": message, "url": SITE})
+    for abo in json.loads(abonnements):
+        try:
+            webpush(subscription_info=abo, data=contenu, vapid_private_key=cle_privee,
+                    vapid_claims={"sub": CONTACT_VAPID}, ttl=6 * 3600,
+                    headers={"Urgency": "high" if prioritaire else "normal"})
+        except Exception as e:
+            # 404 / 410 = appareil désabonné : à retirer du secret
+            print(f"Erreur notification web ({abo['endpoint'][:40]}...) : {e}")
 
 
 def notif_windows(titre, message):
