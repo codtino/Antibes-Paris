@@ -5,13 +5,18 @@ Appelé automatiquement par tgvmax_alerte.py à chaque vérification.
 """
 
 import json
-from datetime import datetime
+from datetime import date, datetime
+
+import calendrier_fr
 
 
 def generer(chemin, dispo, combos, historique, date_max, noms):
     def train(t):
         return {"date": t["date"], "sens": f'{t["origine_iata"]}>{t["destination_iata"]}',
                 "no": t["train_no"], "dep": t["heure_depart"], "arr": t["heure_arrivee"]}
+
+    # Types de jours (férié, pont, vacances...) sur toute la période observée
+    debut = min([date.today().isoformat()] + [k.split("|")[0] for k in historique["trains"]])
 
     donnees = {
         "genere": datetime.now().strftime("%d/%m/%Y à %H:%M"),
@@ -20,6 +25,8 @@ def generer(chemin, dispo, combos, historique, date_max, noms):
         "dispo": [train(t) for t in dispo],
         "allersRetours": [[train(a), train(r)] for a, r in combos],
         "historique": historique,
+        "jours": calendrier_fr.types_de_jours(debut, date_max),
+        "categories": calendrier_fr.CATEGORIES,
         "vapid": cle_vapid.read_text().strip() if (cle_vapid := chemin.parent / "vapid_public.txt").exists() else None,
     }
     js = json.dumps(donnees, ensure_ascii=False).replace("</", "<\\/")
@@ -45,12 +52,14 @@ MODELE = r"""<!doctype html>
   --bg: #f6f5f1; --card: #ffffff; --text: #1d1d1b; --muted: #6b6a66; --line: #e4e2dc;
   --aller: #e0662d; --aller-bg: #fdebe1; --retour: #2a64c5; --retour-bg: #e3ecfb;
   --ar: #b8860b; --ar-bg: #fff4cc; --today: #1d1d1b;
+  --vac: #2f8a55; --vac-bg: #e6f4ea; --ferie: #c0392b;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #161615; --card: #22221f; --text: #ecebe6; --muted: #9b9a94; --line: #34332f;
     --aller: #f0874f; --aller-bg: #3d2417; --retour: #6f9bec; --retour-bg: #1b2a45;
     --ar: #e8c04a; --ar-bg: #3b3115; --today: #ecebe6;
+    --vac: #6cc58f; --vac-bg: #17301f; --ferie: #ef7a6c;
   }
 }
 * { box-sizing: border-box; }
@@ -85,6 +94,11 @@ h2 { font-size: 18px; margin: 0 0 12px; }
 .puce.aller { background: var(--aller-bg); color: var(--aller); }
 .puce.retour { background: var(--retour-bg); color: var(--retour); }
 .badge-ar { font-size: 10.5px; font-weight: 700; color: var(--ar); }
+.jour.vacances:not(.ar) { background: var(--vac-bg); }
+.etiq { font-size: 10.5px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etiq.ferie { color: var(--ferie); font-weight: 700; }
+.etiq.vac { color: var(--vac); }
+.etiq.pont { color: var(--muted); font-weight: 600; }
 .liste-ar { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .liste-ar li { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
   display: flex; flex-wrap: wrap; gap: 6px 18px; font-variant-numeric: tabular-nums; }
@@ -129,6 +143,8 @@ a { color: inherit; }
         <span style="--c: var(--aller)">Antibes → Paris</span>
         <span style="--c: var(--retour)">Paris → Antibes</span>
         <span style="--c: var(--ar)">Départ d'un aller-retour possible</span>
+        <span style="--c: var(--vac)">Vacances scolaires (B = Antibes, C = Paris)</span>
+        <span style="--c: var(--ferie)">Jour férié</span>
       </div>
       <div id="calendrier"></div>
     </div>
@@ -144,6 +160,11 @@ a { color: inherit; }
       <h2>Probabilité d'avoir une place à 0 € par date</h2>
       <p class="aide">Part des mises à jour SNCF où au moins un train du jour avait une place TGV Max.</p>
       <div class="graph"><canvas id="g-date"></canvas></div>
+    </div>
+    <div class="carte">
+      <h2>Selon le type de jour</h2>
+      <p class="aide">Vacances scolaires, jours fériés, ponts… Un même jour peut compter dans plusieurs catégories (ex. un férié pendant les vacances). « Départ » = vendredi, samedi et dimanche du début des vacances ; « Retour » = le week-end avant la reprise.</p>
+      <div class="graph"><canvas id="g-type"></canvas></div>
     </div>
     <div class="deux">
       <div class="carte">
@@ -258,6 +279,15 @@ document.querySelectorAll(".onglets button").forEach(b => b.onclick = () => {
       if (+d === +auj) c.classList.add("aujourdhui");
       if (departsAR.has(k)) c.classList.add("ar");
       let h = `<span class="num">${n}</span>`;
+      const typ = D.jours[k];
+      if (typ) {
+        const t = typ.tags, zones = ["B", "C"].filter(z => t.includes("vac" + z));
+        if (zones.length) c.classList.add("vacances");
+        if (t.includes("ferie")) h += `<span class="etiq ferie">${typ.labels[0]}</span>`;
+        else if (typ.labels.includes("Pont")) h += `<span class="etiq pont">Pont</span>`;
+        if (zones.length) h += `<span class="etiq vac">Vac. ${zones.join("+")}</span>`;
+        c.title = typ.labels.join(" · ");
+      }
       if (departsAR.has(k)) h += `<span class="badge-ar">★ ALLER-RETOUR</span>`;
       else if (retoursAR.has(k)) h += `<span class="badge-ar" style="opacity:.7">↩ retour A/R</span>`;
       (parJour[k] || []).sort((a, b) => a.dep.localeCompare(b.dep)).forEach(t => {
@@ -293,16 +323,17 @@ function calculer() {
     }
   }
   const acc = () => ({ [ALLER]: {}, [RETOUR]: {} });
-  const parDate = acc(), parSemaine = acc(), parDelai = acc();
+  const parDate = acc(), parSemaine = acc(), parDelai = acc(), parType = acc();
   const ajoute = (o, cle, v) => { const x = (o[cle] ||= [0, 0]); x[0] += v; x[1]++; };
   for (const [c, v] of Object.entries(parJourSnap)) {
     const [date, sens, i] = c.split("|"), d = parseIso(date);
     ajoute(parDate[sens], date, v);
     ajoute(parSemaine[sens], jourSem(d), v);
+    (D.jours[date]?.tags || []).forEach(t => ajoute(parType[sens], t, v));
     const delai = Math.round((d - snaps[i]) / 864e5);
     if (delai >= 0) ajoute(parDelai[sens], Math.min(delai, 30), v);
   }
-  return { parDate, parSemaine, parDelai, parTrain, nb: H.snapshots.length, debut: H.snapshots[0] };
+  return { parDate, parSemaine, parDelai, parType, parTrain, nb: H.snapshots.length, debut: H.snapshots[0] };
 }
 
 let graphesFaits = false;
@@ -322,12 +353,13 @@ function dessinerGraphes() {
   Chart.defaults.borderColor = css("--line");
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
   const pct = x => x ? Math.round(100 * x[0] / x[1]) : null;
-  const opts = (etiquettesCompletes) => ({
+  const opts = (etiquettesCompletes, sousTitres) => ({
     responsive: true, maintainAspectRatio: false,
     scales: { y: { min: 0, max: 100, ticks: { callback: v => v + " %" } }, x: { grid: { display: false } } },
     plugins: { legend: { position: "bottom" },
       tooltip: { callbacks: {
         title: items => etiquettesCompletes ? etiquettesCompletes[items[0].dataIndex] : items[0].label,
+        afterTitle: items => sousTitres ? sousTitres[items[0].dataIndex] : "",
         label: c => `${c.dataset.label} : ${c.raw ?? "–"} %` } } }
   });
   const series = (obj, cles) => [
@@ -338,7 +370,12 @@ function dessinerGraphes() {
   const dates = [...new Set([...Object.keys(P.parDate[ALLER]), ...Object.keys(P.parDate[RETOUR])])].sort();
   new Chart(document.getElementById("g-date"), { type: "bar",
     data: { labels: dates.map(d => d.slice(8, 10) + "/" + d.slice(5, 7)), datasets: series(P.parDate, dates) },
-    options: opts(dates.map(fmtCourt)) });
+    options: opts(dates.map(fmtCourt), dates.map(d => (D.jours[d]?.labels || []).join(" · "))) });
+
+  const types = Object.keys(D.categories);
+  new Chart(document.getElementById("g-type"), { type: "bar",
+    data: { labels: types.map(t => D.categories[t]), datasets: series(P.parType, types) },
+    options: opts() });
 
   const sem = [0, 1, 2, 3, 4, 5, 6];
   new Chart(document.getElementById("g-semaine"), { type: "bar",
