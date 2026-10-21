@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TGV Max Antibes–Paris</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --text: #1d1d1b; --muted: #6b6a66; --line: #e4e2dc;
+  --aller: #e0662d; --aller-bg: #fdebe1; --retour: #2a64c5; --retour-bg: #e3ecfb;
+  --ar: #b8860b; --ar-bg: #fff4cc; --today: #1d1d1b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --card: #22221f; --text: #ecebe6; --muted: #9b9a94; --line: #34332f;
+    --aller: #f0874f; --aller-bg: #3d2417; --retour: #6f9bec; --retour-bg: #1b2a45;
+    --ar: #e8c04a; --ar-bg: #3b3115; --today: #ecebe6;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+h2 { font-size: 18px; margin: 0 0 12px; }
+.sous { color: var(--muted); margin: 0 0 20px; }
+.onglets { display: flex; gap: 6px; margin-bottom: 20px; }
+.onglets button { border: 1px solid var(--line); background: var(--card); color: var(--text);
+  padding: 8px 16px; border-radius: 999px; font: inherit; cursor: pointer; }
+.onglets button.actif { background: var(--text); color: var(--bg); border-color: var(--text); }
+.carte { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px; margin-bottom: 18px; }
+.legende { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.legende span::before { content: ""; display: inline-block; width: 10px; height: 10px;
+  border-radius: 3px; margin-right: 6px; background: var(--c); vertical-align: -1px; }
+.mois { margin-bottom: 22px; }
+.mois h3 { margin: 0 0 8px; font-size: 15px; text-transform: capitalize; }
+.grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.jsem { font-size: 12px; color: var(--muted); text-align: center; padding-bottom: 2px; }
+.jour { min-height: 92px; border: 1px solid var(--line); border-radius: 8px; padding: 5px;
+  display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.jour.vide { border: none; }
+.jour.passe { opacity: .35; }
+.jour.ar { border-color: var(--ar); background: var(--ar-bg); }
+.jour.aujourdhui .num { background: var(--today); color: var(--bg); border-radius: 999px; padding: 0 6px; }
+.num { font-size: 12px; font-weight: 600; align-self: flex-start; }
+.puce { font-size: 11.5px; border-radius: 5px; padding: 1px 5px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.puce.aller { background: var(--aller-bg); color: var(--aller); }
+.puce.retour { background: var(--retour-bg); color: var(--retour); }
+.badge-ar { font-size: 10.5px; font-weight: 700; color: var(--ar); }
+.liste-ar { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.liste-ar li { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+  display: flex; flex-wrap: wrap; gap: 6px 18px; font-variant-numeric: tabular-nums; }
+.liste-ar b { color: var(--ar); }
+.vide-msg { color: var(--muted); font-style: italic; }
+.avert { background: var(--ar-bg); border: 1px solid var(--ar); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 18px; font-size: 14px; }
+.graph { position: relative; height: 300px; }
+.deux { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.deux .carte { margin-bottom: 0; }
+.aide { color: var(--muted); font-size: 13px; margin: -6px 0 12px; }
+a { color: inherit; }
+@media (max-width: 720px) {
+  .deux { grid-template-columns: 1fr; }
+  .jour { min-height: 70px; padding: 3px; }
+  .puce { font-size: 10px; padding: 0 3px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>🚄 TGV Max · Antibes ⇄ Paris</h1>
+  <p class="sous" id="sous"></p>
+  <div class="onglets">
+    <button class="actif" data-onglet="cal">Calendrier</button>
+    <button data-onglet="proba">Probabilités</button>
+  </div>
+
+  <section id="cal">
+    <div class="carte">
+      <div class="legende">
+        <span style="--c: var(--aller)">Antibes → Paris</span>
+        <span style="--c: var(--retour)">Paris → Antibes</span>
+        <span style="--c: var(--ar)">Départ d'un aller-retour possible</span>
+      </div>
+      <div id="calendrier"></div>
+    </div>
+    <div class="carte">
+      <h2>🎉 Allers-retours possibles</h2>
+      <ul class="liste-ar" id="liste-ar"></ul>
+    </div>
+  </section>
+
+  <section id="proba" hidden>
+    <div id="avert"></div>
+    <div class="carte">
+      <h2>Probabilité d'avoir une place à 0 € par date</h2>
+      <p class="aide">Part des mises à jour SNCF où au moins un train du jour avait une place TGV Max.</p>
+      <div class="graph"><canvas id="g-date"></canvas></div>
+    </div>
+    <div class="deux">
+      <div class="carte">
+        <h2>Par jour de la semaine</h2>
+        <div class="graph"><canvas id="g-semaine"></canvas></div>
+      </div>
+      <div class="carte">
+        <h2>Selon le délai avant le départ</h2>
+        <div class="graph"><canvas id="g-delai"></canvas></div>
+      </div>
+    </div>
+    <div class="carte" style="margin-top:18px">
+      <h2>Par horaire de train</h2>
+      <p class="aide">Part des observations où ce train avait une place TGV Max.</p>
+      <div class="graph"><canvas id="g-train"></canvas></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const D = {"genere": "21/10/2026 à 14:16", "dateMax": "2026-11-20", "noms": {"FRXAT": "Antibes", "FRPLY": "Paris"}, "dispo": [{"date": "2026-10-21", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-10-22", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-10-22", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-11-04", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-11-05", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-11-05", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-11-06", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-11-07", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-11-07", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-11-18", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-11-18", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-11-19", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-11-19", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-10-29", "sens": "FRPLY>FRXAT", "no": "6177", "dep": "14:10", "arr": "19:44"}, {"date": "2026-10-31", "sens": "FRPLY>FRXAT", "no": "6165", "dep": "11:22", "arr": "16:44"}, {"date": "2026-10-31", "sens": "FRPLY>FRXAT", "no": "6181", "dep": "17:22", "arr": "22:41"}, {"date": "2026-11-15", "sens": "FRPLY>FRXAT", "no": "6181", "dep": "17:22", "arr": "22:41"}, {"date": "2026-11-17", "sens": "FRPLY>FRXAT", "no": "6181", "dep": "17:22", "arr": "22:42"}], "allersRetours": [[{"date": "2026-10-22", "sens": "FRXAT>FRPLY", "no": "6168", "dep": "16:18", "arr": "21:51"}, {"date": "2026-10-29", "sens": "FRPLY>FRXAT", "no": "6177", "dep": "14:10", "arr": "19:44"}], [{"date": "2026-10-22", "sens": "FRXAT>FRPLY", "no": "6180", "dep": "17:18", "arr": "22:40"}, {"date": "2026-10-29", "sens": "FRPLY>FRXAT", "no": "6177", "dep": "14:10", "arr": "19:44"}]], "historique": {"snapshots": ["2026-10-21T04:23:51+00:00"], "trains": {"2026-10-21|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-21|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-21|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-21|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-21|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-10-22|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-22|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-22|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-22|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 1]]}, "2026-10-22|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-10-23|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-23|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-23|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-23|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-23|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-24|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-24|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-24|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-24|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-24|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-25|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-25|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-25|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-25|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-25|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-25|FRXAT>FRPLY|6186": {"dep": "18:18", "arr": "23:46", "obs": [[0, 0]]}, "2026-10-26|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-26|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-26|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-26|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-26|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-27|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-27|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-27|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-27|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-27|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-28|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-28|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-28|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-28|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-28|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-29|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-29|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-29|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-29|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-29|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-30|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-30|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-30|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-30|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-30|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-31|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-10-31|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-10-31|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-10-31|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-10-31|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-01|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-11-01|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-01|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-01|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-01|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-01|FRXAT>FRPLY|6186": {"dep": "18:18", "arr": "23:46", "obs": [[0, 0]]}, "2026-11-02|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-02|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-02|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-02|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-03|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-03|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-03|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-03|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-04|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-04|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-04|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-04|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-11-05|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-05|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-05|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 1]]}, "2026-11-05|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-11-06|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-06|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-06|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 1]]}, "2026-11-06|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-07|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-11-07|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-07|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-07|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 1]]}, "2026-11-07|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-11-08|FRXAT>FRPLY|6188": {"dep": "08:18", "arr": "13:50", "obs": [[0, 0]]}, "2026-11-08|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-08|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-08|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-08|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-08|FRXAT>FRPLY|6186": {"dep": "18:18", "arr": "23:46", "obs": [[0, 0]]}, "2026-11-15|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-15|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-15|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-15|FRXAT>FRPLY|6186": {"dep": "18:18", "arr": "23:46", "obs": [[0, 0]]}, "2026-11-16|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-16|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-16|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-16|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-17|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-17|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-17|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-17|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-11-18|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-18|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-18|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 1]]}, "2026-11-18|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-11-19|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-19|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-19|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 1]]}, "2026-11-19|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 1]]}, "2026-11-20|FRXAT>FRPLY|6174": {"dep": "10:18", "arr": "15:51", "obs": [[0, 0]]}, "2026-11-20|FRXAT>FRPLY|6176": {"dep": "12:18", "arr": "17:50", "obs": [[0, 0]]}, "2026-11-20|FRXAT>FRPLY|6168": {"dep": "16:18", "arr": "21:51", "obs": [[0, 0]]}, "2026-11-20|FRXAT>FRPLY|6180": {"dep": "17:18", "arr": "22:40", "obs": [[0, 0]]}, "2026-10-21|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-21|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-21|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-21|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-21|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-22|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-22|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-22|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-22|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-22|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-23|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-23|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-23|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-23|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-23|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-23|FRPLY>FRXAT|6187": {"dep": "19:09", "arr": "00:24", "obs": [[0, 0]]}, "2026-10-24|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-24|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-24|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-24|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-24|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 0]]}, "2026-10-25|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-25|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-25|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-25|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-25|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 0]]}, "2026-10-26|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-26|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-26|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-26|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-26|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-27|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-27|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-27|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-27|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-27|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-28|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-28|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-28|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-28|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-28|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-29|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-29|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-29|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-29|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 1]]}, "2026-10-29|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-30|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-30|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-30|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-10-30|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-30|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-10-30|FRPLY>FRXAT|6187": {"dep": "19:09", "arr": "00:24", "obs": [[0, 0]]}, "2026-10-31|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-10-31|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-10-31|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 1]]}, "2026-10-31|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-10-31|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 1]]}, "2026-11-01|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-01|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-01|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-11-01|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-01|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 0]]}, "2026-11-02|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-02|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-02|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-02|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-03|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-03|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-03|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-03|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-04|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-04|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-04|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-04|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-05|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-05|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-05|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-05|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-06|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-06|FRPLY>FRXAT|6175": {"dep": "10:11", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-06|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-11-06|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-06|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-06|FRPLY>FRXAT|6187": {"dep": "19:09", "arr": "00:24", "obs": [[0, 0]]}, "2026-11-07|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-07|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-07|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-11-07|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-07|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 0]]}, "2026-11-08|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-08|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-08|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 0]]}, "2026-11-15|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-15|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-15|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-15|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:41", "obs": [[0, 1]]}, "2026-11-16|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-16|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-16|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-16|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-17|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-17|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-17|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-17|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 1]]}, "2026-11-18|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-18|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-18|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-18|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-19|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-19|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-19|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-20|FRPLY>FRXAT|6173": {"dep": "09:10", "arr": "14:44", "obs": [[0, 0]]}, "2026-11-20|FRPLY>FRXAT|6175": {"dep": "10:10", "arr": "15:45", "obs": [[0, 0]]}, "2026-11-20|FRPLY>FRXAT|6165": {"dep": "11:22", "arr": "16:44", "obs": [[0, 0]]}, "2026-11-20|FRPLY>FRXAT|6177": {"dep": "14:10", "arr": "19:44", "obs": [[0, 0]]}, "2026-11-20|FRPLY>FRXAT|6181": {"dep": "17:22", "arr": "22:42", "obs": [[0, 0]]}, "2026-11-20|FRPLY>FRXAT|6187": {"dep": "19:09", "arr": "00:24", "obs": [[0, 0]]}}}};
+const ALLER = "FRXAT>FRPLY", RETOUR = "FRPLY>FRXAT";
+const JOURS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const iso = d => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+const parseIso = s => { const [y, m, j] = s.slice(0, 10).split("-").map(Number); return new Date(y, m - 1, j); };
+const jourSem = d => (d.getDay() + 6) % 7;
+const fmtCourt = s => { const d = parseIso(s); return JOURS[jourSem(d)] + " " + s.slice(8, 10) + "/" + s.slice(5, 7); };
+
+document.getElementById("sous").textContent =
+  `Mis à jour le ${D.genere} · ${D.dispo.length} place(s) dispo · ${D.allersRetours.length} aller(s)-retour(s) possible(s)`;
+
+document.querySelectorAll(".onglets button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".onglets button").forEach(x => x.classList.toggle("actif", x === b));
+  document.getElementById("cal").hidden = b.dataset.onglet !== "cal";
+  document.getElementById("proba").hidden = b.dataset.onglet !== "proba";
+  if (b.dataset.onglet === "proba") dessinerGraphes();
+});
+
+// ---------- Calendrier ----------
+(function calendrier() {
+  const parJour = {};
+  D.dispo.forEach(t => (parJour[t.date] ||= []).push(t));
+  const departsAR = new Set(D.allersRetours.map(([a]) => a.date));
+  const retoursAR = new Set(D.allersRetours.map(([, r]) => r.date));
+  const auj = new Date(); auj.setHours(0, 0, 0, 0);
+  const fin = parseIso(D.dateMax);
+  const zone = document.getElementById("calendrier");
+
+  for (let m = new Date(auj.getFullYear(), auj.getMonth(), 1); m <= fin; m.setMonth(m.getMonth() + 1)) {
+    const bloc = document.createElement("div");
+    bloc.className = "mois";
+    bloc.innerHTML = `<h3>${m.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</h3>`;
+    const g = document.createElement("div");
+    g.className = "grille";
+    JOURS.forEach(j => g.insertAdjacentHTML("beforeend", `<div class="jsem">${j}</div>`));
+    for (let i = 0; i < jourSem(m); i++) g.insertAdjacentHTML("beforeend", `<div class="jour vide"></div>`);
+    const nbJours = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    for (let n = 1; n <= nbJours; n++) {
+      const d = new Date(m.getFullYear(), m.getMonth(), n), k = iso(d);
+      const c = document.createElement("div");
+      c.className = "jour";
+      if (d < auj || d > fin) c.classList.add("passe");
+      if (+d === +auj) c.classList.add("aujourdhui");
+      if (departsAR.has(k)) c.classList.add("ar");
+      let h = `<span class="num">${n}</span>`;
+      if (departsAR.has(k)) h += `<span class="badge-ar">★ ALLER-RETOUR</span>`;
+      else if (retoursAR.has(k)) h += `<span class="badge-ar" style="opacity:.7">↩ retour A/R</span>`;
+      (parJour[k] || []).sort((a, b) => a.dep.localeCompare(b.dep)).forEach(t => {
+        const aller = t.sens === ALLER;
+        h += `<span class="puce ${aller ? "aller" : "retour"}" title="${aller ? "Antibes → Paris" : "Paris → Antibes"} · ${t.dep}–${t.arr} · train ${t.no}">${aller ? "→P" : "→A"} ${t.dep}</span>`;
+      });
+      c.innerHTML = h;
+      g.appendChild(c);
+    }
+    bloc.appendChild(g);
+    zone.appendChild(bloc);
+  }
+
+  const ul = document.getElementById("liste-ar");
+  if (!D.allersRetours.length) ul.innerHTML = `<li class="vide-msg">Aucun aller-retour possible pour l'instant.</li>`;
+  D.allersRetours.forEach(([a, r]) => ul.insertAdjacentHTML("beforeend",
+    `<li><span><b>Aller</b> ${fmtCourt(a.date)} · ${a.dep}–${a.arr} (train ${a.no})</span>
+         <span><b>Retour</b> ${fmtCourt(r.date)} · ${r.dep}–${r.arr} (train ${r.no})</span></li>`));
+})();
+
+// ---------- Probabilités ----------
+function calculer() {
+  const H = D.historique, snaps = H.snapshots.map(parseIso);
+  const parJourSnap = {};   // "date|sens|snap" -> 0/1 (au moins un train libre)
+  const parTrain = {};      // "sens|dep" -> [libres, total]
+  for (const [k, e] of Object.entries(H.trains)) {
+    const [date, sens] = k.split("|");
+    for (const [i, libre] of e.obs) {
+      const c = date + "|" + sens + "|" + i;
+      parJourSnap[c] = Math.max(parJourSnap[c] || 0, libre);
+      const t = (parTrain[sens + "|" + e.dep] ||= [0, 0]);
+      t[0] += libre; t[1]++;
+    }
+  }
+  const acc = () => ({ [ALLER]: {}, [RETOUR]: {} });
+  const parDate = acc(), parSemaine = acc(), parDelai = acc();
+  const ajoute = (o, cle, v) => { const x = (o[cle] ||= [0, 0]); x[0] += v; x[1]++; };
+  for (const [c, v] of Object.entries(parJourSnap)) {
+    const [date, sens, i] = c.split("|"), d = parseIso(date);
+    ajoute(parDate[sens], date, v);
+    ajoute(parSemaine[sens], jourSem(d), v);
+    const delai = Math.round((d - snaps[i]) / 864e5);
+    if (delai >= 0) ajoute(parDelai[sens], Math.min(delai, 30), v);
+  }
+  return { parDate, parSemaine, parDelai, parTrain, nb: H.snapshots.length, debut: H.snapshots[0] };
+}
+
+let graphesFaits = false;
+function dessinerGraphes() {
+  if (graphesFaits) return;
+  graphesFaits = true;
+  const P = calculer();
+  const av = document.getElementById("avert");
+  if (P.nb < 7) av.innerHTML = `<div class="avert">⏳ Seulement <b>${P.nb}</b> mise(s) à jour SNCF enregistrée(s) (depuis le ${fmtCourt(P.debut)}). La SNCF publie environ une mise à jour par jour : les probabilités deviendront fiables après quelques semaines.</div>`;
+  else av.innerHTML = `<p class="aide" style="margin:0 0 14px">Basé sur ${P.nb} mises à jour SNCF depuis le ${fmtCourt(P.debut)}.</p>`;
+
+  if (typeof Chart === "undefined") {
+    document.querySelectorAll(".graph").forEach(g => g.innerHTML = `<p class="vide-msg">Connexion internet nécessaire pour afficher les graphiques.</p>`);
+    return;
+  }
+  Chart.defaults.color = css("--muted");
+  Chart.defaults.borderColor = css("--line");
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  const pct = x => x ? Math.round(100 * x[0] / x[1]) : null;
+  const opts = (etiquettesCompletes) => ({
+    responsive: true, maintainAspectRatio: false,
+    scales: { y: { min: 0, max: 100, ticks: { callback: v => v + " %" } }, x: { grid: { display: false } } },
+    plugins: { legend: { position: "bottom" },
+      tooltip: { callbacks: {
+        title: items => etiquettesCompletes ? etiquettesCompletes[items[0].dataIndex] : items[0].label,
+        label: c => `${c.dataset.label} : ${c.raw ?? "–"} %` } } }
+  });
+  const series = (obj, cles) => [
+    { label: "Antibes → Paris", data: cles.map(k => pct(obj[ALLER][k])), backgroundColor: css("--aller"), borderRadius: 3 },
+    { label: "Paris → Antibes", data: cles.map(k => pct(obj[RETOUR][k])), backgroundColor: css("--retour"), borderRadius: 3 },
+  ];
+
+  const dates = [...new Set([...Object.keys(P.parDate[ALLER]), ...Object.keys(P.parDate[RETOUR])])].sort();
+  new Chart(document.getElementById("g-date"), { type: "bar",
+    data: { labels: dates.map(d => d.slice(8, 10) + "/" + d.slice(5, 7)), datasets: series(P.parDate, dates) },
+    options: opts(dates.map(fmtCourt)) });
+
+  const sem = [0, 1, 2, 3, 4, 5, 6];
+  new Chart(document.getElementById("g-semaine"), { type: "bar",
+    data: { labels: JOURS, datasets: series(P.parSemaine, sem) }, options: opts() });
+
+  const delais = [...Array(31).keys()];
+  new Chart(document.getElementById("g-delai"), { type: "bar",
+    data: { labels: delais.map(x => x === 30 ? "J-30+" : "J-" + x), datasets: series(P.parDelai, delais) },
+    options: opts() });
+
+  const horaires = [...new Set(Object.keys(P.parTrain).map(k => k.split("|")[1]))].sort();
+  const trainSerie = sens => horaires.map(h => pct(P.parTrain[sens + "|" + h]));
+  new Chart(document.getElementById("g-train"), { type: "bar",
+    data: { labels: horaires, datasets: [
+      { label: "Antibes → Paris", data: trainSerie(ALLER), backgroundColor: css("--aller"), borderRadius: 3 },
+      { label: "Paris → Antibes", data: trainSerie(RETOUR), backgroundColor: css("--retour"), borderRadius: 3 }] },
+    options: opts() });
+}
+</script>
+</body>
+</html>

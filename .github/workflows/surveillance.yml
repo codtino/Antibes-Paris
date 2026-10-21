@@ -1,0 +1,35 @@
+# Vérifie les places TGV Max toutes les 15 minutes, même PC éteint.
+# Le sujet ntfy est dans le secret NTFY_TOPIC (Settings > Secrets > Actions).
+name: Surveillance TGV Max
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:   # bouton "Run workflow" pour lancer à la main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: surveillance
+  cancel-in-progress: false
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TZ: Europe/Paris
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier les places
+        run: python3 tgvmax_alerte.py
+
+      - name: Sauvegarder l'état et l'historique
+        run: |
+          git config user.name "tgvmax-bot"
+          git config user.email "tgvmax-bot@users.noreply.github.com"
+          git add deja_vus.json historique.json tableau_de_bord.html
+          git diff --cached --quiet || (git commit -m "Mise à jour TGV Max" && git push)
