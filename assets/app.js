@@ -2,7 +2,7 @@ import {
   API_SERVEUR, JOURS_COURTS, MOIS, isoLocal, versDate, jourSemaine, ajouterJours, ecartJours, fmtCourt, fmtLong,
   minutes, duree, gares, placesTrajet, placesDepuis, placesVers, publicationSncf, prochainePublication,
   allersRetours, correspondances, calendrierFrance, typesDeJours, CATEGORIES, codeAcces, memoriserCode, serveur,
-} from "./data.js?v=6";
+} from "./data.js?v=7";
 
 // ------------------------------------------------------------ état
 
@@ -241,7 +241,9 @@ function afficherResume() {
     [aller.length, `place${aller.length > 1 ? "s" : ""} ${nom(etat.o)} → ${nom(etat.d)}`],
     etat.ar ? [retour.length, `place${retour.length > 1 ? "s" : ""} ${nom(etat.d)} → ${nom(etat.o)}`] : [jours, `jour${jours > 1 ? "s" : ""} avec au moins une place`],
     etat.ar ? [etat.combos.length, `aller${etat.combos.length > 1 ? "s" : ""}-retour${etat.combos.length > 1 ? "s" : ""} (${etat.sejourMin}–${etat.sejourMax} nuits)`] : [aller[0] ? fmtCourt(aller[0].date) : "—", "prochaine place"],
-    [nouv, `nouvelle${nouv > 1 ? "s" : ""} à la dernière publication`],
+    etat.stats[`${etat.o}>${etat.d}`]?.snaps?.length
+      ? [nouv, `nouvelle${nouv > 1 ? "s" : ""} à la dernière publication`]
+      : ["—", "nouveautés : surveille ce trajet (onglet Alertes) pour les voir"],
   ];
   $("#resume").innerHTML = cases.map(([v, l]) => `<div><div class="val">${esc(v)}</div><div class="lib">${esc(l)}</div></div>`).join("");
 }
@@ -283,8 +285,8 @@ function afficherCalendrier() {
       if (iso === etat.jourChoisi) classes.push("choisi");
       if (cibles.has(iso)) classes.push("cible");
       let c = `<span class="n">${n}</span>`;
-      if (nA) c += `<span class="compte aller">→ ${nA}<small>aller</small></span>`;
-      if (nR) c += `<span class="compte retour">← ${nR}<small>retour</small></span>`;
+      if (nA) c += `<span class="compte aller" title="${nA} place(s) à l'aller">→ ${nA}</span>`;
+      if (nR) c += `<span class="compte retour" title="${nR} place(s) au retour">← ${nR}</span>`;
       let marques = "";
       if (liste.some(estNouveau)) marques += `<span class="nouv">NOUV.</span>`;
       if (departsAR.has(iso)) marques += `<span class="ar">A/R</span>`;
@@ -310,11 +312,13 @@ function afficherListeAR() {
     $("#liste-ar").innerHTML = `<div class="vide">Aucun aller-retour complet pour l'instant. Une alerte te préviendra dès qu'il y en a un.</div>`;
     return;
   }
+  const MAX = 60;
   $("#liste-ar").innerHTML = `<table class="tableau"><thead><tr><th>Aller</th><th>Retour</th><th class="num">Nuits</th></tr></thead><tbody>${
-    etat.combos.map(c => `<tr class="cliquable" data-jour="${c.aller.date}">
+    etat.combos.slice(0, MAX).map(c => `<tr class="cliquable" data-jour="${c.aller.date}">
       <td><span class="mono">${fmtCourt(c.aller.date)} ${c.aller.dep} → ${c.aller.arr}</span> ${estNouveau(c.aller) ? `<span class="tag nouv">nouv.</span>` : ""}</td>
       <td><span class="mono">${fmtCourt(c.retour.date)} ${c.retour.dep} → ${c.retour.arr}</span> ${estNouveau(c.retour) ? `<span class="tag nouv">nouv.</span>` : ""}</td>
-      <td class="num">${c.nuits}</td></tr>`).join("")}</tbody></table>`;
+      <td class="num">${c.nuits}</td></tr>`).join("")}</tbody></table>
+    ${etat.combos.length > MAX ? `<p class="note" style="padding:10px 14px">Les ${MAX} premiers sur ${etat.combos.length}. Réduis la durée de séjour ou clique sur un jour pour affiner.</p>` : ""}`;
   $("#liste-ar").querySelectorAll("[data-jour]").forEach(tr => tr.onclick = () => afficherDetail(tr.dataset.jour));
 }
 
