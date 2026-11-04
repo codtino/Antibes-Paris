@@ -1,0 +1,20 @@
+name = "tgvmax"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# Vérification toutes les minutes (le code décide s'il interroge la SNCF ou non)
+[triggers]
+crons = ["* * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tgvmax"
+database_id = "f779f9f6-351a-46a1-84ac-6a810018e842"
+
+[vars]
+VAPID_PUBLIC = "BNvl7FGDHgZdum8dhD0_pM5LSjfdrhSOZB6v4CcmC92BL20LZq_2TopjA32o-G7YT8x5yUYXIF_1G_2LNNSGLzw"
+VAPID_SUBJECT = "mailto:106277128+codtino@users.noreply.github.com"
+SITE = "https://codtino.github.io/Antibes-Paris/"
+ORIGINES = "https://codtino.github.io,http://127.0.0.1:8765,http://localhost:8765"
+
+# Secrets (wrangler secret put) : VAPID_PRIVATE, ACCESS_CODE

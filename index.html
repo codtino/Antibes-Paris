@@ -1,5 +1,135 @@
 <!doctype html>
+<html lang="fr">
+<head>
 <meta charset="utf-8">
-<title>TGV Max Antibes–Paris</title>
-<meta http-equiv="refresh" content="0; url=tableau_de_bord.html">
-<a href="tableau_de_bord.html">Ouvrir le tableau de bord</a>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Radar TGV Max</title>
+<meta name="description" content="Places TGV Max à 0 € : calendrier, alertes instantanées, allers-retours, correspondances et probabilités.">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone-192.png">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="theme-color" content="#15181d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TGV Max">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=6">
+</head>
+<body>
+<header class="entete">
+  <div class="entete-ligne">
+    <div class="marque">Radar TGV Max<span>0 €</span></div>
+    <div class="etat">
+      <span class="publication" id="etat-publication">Données SNCF : chargement…</span>
+      <span id="etat-serveur"></span>
+      <button class="btn petit" id="actualiser" title="Interroger la SNCF maintenant">Actualiser</button>
+    </div>
+  </div>
+</header>
+
+<form class="trajet" id="form-trajet" autocomplete="off">
+  <label class="champ auto"><span>Départ</span>
+    <input type="text" id="gare-o" placeholder="Gare de départ" required>
+  </label>
+  <button type="button" class="btn inverser" id="inverser" title="Inverser le trajet" aria-label="Inverser le trajet">⇄</button>
+  <label class="champ auto"><span>Arrivée</span>
+    <input type="text" id="gare-d" placeholder="Gare d'arrivée" required>
+  </label>
+  <div class="segment" role="group" aria-label="Type de trajet">
+    <button type="button" id="mode-aller" aria-pressed="false">Aller simple</button>
+    <button type="button" id="mode-ar" aria-pressed="true">Aller-retour</button>
+  </div>
+  <div class="sejour" id="sejour">Séjour
+    <input type="number" id="sejour-min" min="0" max="30" value="1" aria-label="Nuits minimum"> à
+    <input type="number" id="sejour-max" min="0" max="30" value="7" aria-label="Nuits maximum"> nuits
+  </div>
+  <button class="btn principal" type="submit">Rechercher</button>
+</form>
+<div class="favoris" id="favoris"></div>
+
+<nav class="onglets" role="tablist">
+  <button role="tab" data-vue="calendrier" aria-selected="true">Calendrier</button>
+  <button role="tab" data-vue="partir" aria-selected="false">Où partir ?</button>
+  <button role="tab" data-vue="correspondances" aria-selected="false">Correspondances</button>
+  <button role="tab" data-vue="alertes" aria-selected="false">Alertes</button>
+  <button role="tab" data-vue="stats" aria-selected="false">Statistiques</button>
+</nav>
+
+<main>
+  <!-- Calendrier -->
+  <section class="vue" id="vue-calendrier">
+    <div class="resume" id="resume"></div>
+    <div class="cal-et-detail">
+      <div>
+        <div class="bloc">
+          <div class="bloc-tete"><h2 id="titre-cal">Calendrier</h2><span class="discret" id="sous-titre-cal"></span></div>
+          <div class="legende" id="legende"></div>
+          <div id="calendrier"></div>
+        </div>
+        <div class="bloc" id="bloc-ar">
+          <div class="bloc-tete"><h2>Allers-retours possibles</h2><span class="discret" id="ar-info"></span></div>
+          <div class="defile" id="liste-ar"></div>
+        </div>
+      </div>
+      <aside class="detail" id="detail"></aside>
+    </div>
+  </section>
+
+  <!-- Où partir -->
+  <section class="vue" id="vue-partir" hidden>
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Où partir gratuitement ?</h2><span class="discret">Toutes les destinations avec une place à 0 € depuis une gare.</span></div>
+      <form class="formulaire" id="form-partir">
+        <label class="champ auto" style="min-width:220px"><span>Depuis</span><input type="text" id="partir-gare" required></label>
+        <label class="champ"><span>Du</span><input type="date" id="partir-du" required></label>
+        <label class="champ"><span>Au</span><input type="date" id="partir-au" required></label>
+        <div class="champ"><span>Raccourcis</span>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn" data-periode="weekend">Ce week-end</button>
+            <button type="button" class="btn" data-periode="weekend2">Week-end suivant</button>
+            <button type="button" class="btn" data-periode="7">7 jours</button>
+          </div>
+        </div>
+        <button class="btn principal" type="submit">Chercher</button>
+      </form>
+      <div class="defile" id="res-partir"></div>
+    </div>
+  </section>
+
+  <!-- Correspondances -->
+  <section class="vue" id="vue-correspondances" hidden>
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Trajets avec correspondance</h2><span class="discret">Quand il n'y a pas de direct gratuit : deux trains à 0 € le même jour.</span></div>
+      <form class="formulaire" id="form-corresp">
+        <div class="champ"><span>Trajet</span><div id="corresp-trajet" style="padding:7px 0;font-weight:600"></div></div>
+        <label class="champ"><span>Date</span><input type="date" id="corresp-date" required></label>
+        <label class="champ"><span>Changement minimum</span>
+          <select id="corresp-min"><option value="20">20 min</option><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">1 h</option><option value="90">1 h 30</option></select>
+        </label>
+        <button class="btn principal" type="submit">Chercher</button>
+      </form>
+      <p class="note" style="padding:0 14px 12px">Les quotas TGV Max sont fixés par trajet : quand le direct est complet, le même train coupé en deux billets peut être libre. À Paris, au moins 1 h 15 de changement est imposé (changement de gare). Les combinaisons moins bonnes qu'un direct gratuit sont masquées.</p>
+      <div class="defile" id="res-corresp"></div>
+    </div>
+  </section>
+
+  <!-- Alertes -->
+  <section class="vue" id="vue-alertes" hidden>
+    <div class="bloc">
+      <div class="bloc-tete"><h2>Cet appareil</h2></div>
+      <div class="bloc-corps" id="appareil"></div>
+    </div>
+    <div id="zone-privee"></div>
+  </section>
+
+  <!-- Statistiques -->
+  <section class="vue" id="vue-stats" hidden>
+    <div id="stats"></div>
+  </section>
+</main>
+
+<div class="toast cache" id="toast" role="status"></div>
+<script type="module" src="assets/app.js?v=6"></script>
+</body>
+</html>

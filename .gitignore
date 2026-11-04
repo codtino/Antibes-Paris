@@ -2,3 +2,7 @@ ntfy_sujet.txt
 __pycache__/
 vapid_prive.txt
 webpush_abonnements.json
+worker/node_modules/
+worker/.wrangler/
+worker/migration.sql
+acces.txt

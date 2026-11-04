@@ -1,11 +1,11 @@
 {
-  "name": "TGV Max Antibes ⇄ Paris",
+  "name": "Radar TGV Max",
   "short_name": "TGV Max",
-  "start_url": "tableau_de_bord.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f6f5f1",
-  "theme_color": "#e0662d",
+  "background_color": "#f3f3f0",
+  "theme_color": "#15181d",
   "icons": [
     { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icone-512.png", "sizes": "512x512", "type": "image/png" }
